@@ -3,7 +3,6 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include <mqttClient.h>
-#include <ps2.h>
 #include "credentials.h"
 #include "topics.h"
 #include "vars.h"
@@ -13,7 +12,6 @@
 
 // declare objects & variables
 void setupWifi();
-void getSwitchValue();
 void onWifiConnect(const WiFiEventStationModeGotIP &event);
 void onWifiDisconnect(const WiFiEventStationModeDisconnected &event);
 
@@ -24,8 +22,6 @@ Preferences preferences;
 
 unsigned long loopDelay = 100;
 
-unsigned int dial = -1;
-
 unsigned long interval = 1000 * 60 * 10; // 10 minutes for a reboot if no signal recieved
 
 bool sendNetworkDetails = true;
@@ -34,7 +30,6 @@ unsigned long lastDelayLoopMillis = 0;
 
 void setup()
 {
-  pinMode(A0, INPUT);
   pinMode(LED_BUILTIN, OUTPUT);
 
 #ifdef PRINT_TO_SERIAL
@@ -42,7 +37,7 @@ void setup()
 #endif
 
   // get loop delay
-  preferences.begin("ps2", false);
+  preferences.begin("ps3", false);
   loopDelay = preferences.getULong("loopDelay", loopDelay);
 
   randomSeed(micros());
@@ -50,8 +45,6 @@ void setup()
   setupWifi();
 
   setupMQTTClient();
-
-  getSwitchValue(); // get switch value once
 
   setUpPS2(); // connect controller
 
@@ -122,57 +115,6 @@ void loop()
 
   // set LED off
   digitalWrite(LED_BUILTIN, HIGH);
-}
-
-void getSwitchValue()
-{
-  const int numReadings = 100;
-
-  int total = 0; // the running total
-
-  for (int thisReading = 0; thisReading < numReadings; thisReading++)
-  {
-    int sensorValue = analogRead(A0);
-
-    total = total + sensorValue;
-
-    delay(10);
-  }
-
-  // calculate the average:
-  int average = total / numReadings;
-
-#ifdef PRINT_TO_SERIAL
-  Serial.print("Raw dial value:");
-  Serial.println(average);
-#endif
-
-  if (average < 200)
-  {
-    dial = 1;
-  }
-  else if ((200 < average) && (average < 350))
-  {
-    dial = 2;
-  }
-  else if ((350 < average) && (average < 800))
-  {
-    dial = 3;
-  }
-  else
-  {
-    dial = 4;
-  }
-
-#ifdef PRINT_TO_SERIAL
-  Serial.print("Dial position:");
-  Serial.println(dial);
-#endif
-
-  std::stringstream msg;
-  msg << dial;
-
-  MQTTClient.publish(MQTT_DIAL_TOPIC.c_str(), msg.str().c_str());
 }
 
 void setupWifi()
